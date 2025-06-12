@@ -1,0 +1,166 @@
+---
+hip: <HIP number (assigned by the HIP editor), usually the PR number>
+title: <Brief title describing the purpose of the HIP. Ex: "Biometric Binding Codes">
+author: <Comma separated list of the authors' names and/or usernames, or names and emails. Ex: John Doe <@johnDoeGithub1778>, Jane Smith <jane@email.com>>
+working-group: <List of the technical and business stakeholders' names and/or usernames, or names and emails. Ex: John Doe <@johnDoeGithub1778>, Jane Smith <jane@email.com>>
+requested-by: <Name(s) and/or username(s), or name(s) and email(s) of the individual(s) or project(s) requesting the HIP. Ex: Acme Corp <request@acmecorp.com>>
+type: <"Standards Track" | "Informational" | "Process">
+category: <"Core" | "Service" | "Mirror" | "Application">
+needs-hedera-review: <"Yes" | "No">
+hedera-review-date: <Date of Hedera's review in YYYY-MM-DD format>
+hedera-approval-status: <"Approved" | "Rejected">
+needs-hiero-approval: <"Yes" | "No">
+status: <"Draft" | "Review" | "Last Call" | "Active" | "Inactive" | "Deferred" | "Rejected" | "Withdrawn" | "Accepted" | "Final" | "Replaced">
+created: <Date the HIP was created on, in YYYY-MM-DD format>
+discussions-to: <A URL pointing to the official discussion thread. Ex: https://github.com/hiero-ledger/hiero-improvement-proposals/discussions/000>
+updated: <Latest date HIP was updated, in YYYY-MM-DD format.>
+requires: <HIP number(s) this HIP depends on, if applicable. Ex: 101, 102>
+replaces: <HIP number(s) this HIP replaces, if applicable. Ex: 99>
+superseded-by: <HIP number(s) that supersede this HIP, if applicable. Ex: 104>
+---
+
+## Abstract
+Quiescence is a feature that stops event creation when there are no transactions. The purpose of this is to reduce the
+amount of data produced and bandwidth used by low volume networks.
+
+## Motivation
+The purpose of this is to reduce the amount of data produced and bandwidth used by low volume networks. When there are
+no transactions being submitted to the network, the network can stop creating events and thus stop gossipping and
+producing blocks. This can drastically reduce the amount of data that needs to be stored long term as well as the amount
+of bandwidth used by the network.
+
+## Rationale
+The rationale fleshes out the specification by describing why particular design
+decisions were made. It should describe alternate designs that were considered
+and related work, e.g. how the feature is supported in other ecosystems.
+
+The rationale should provide evidence of consensus within the community and
+discuss important objections or concerns raised during the discussion.
+
+## User stories
+Provide a list of "user stories" to express how this feature, functionality,
+improvement, or tool will be used by the end user. Template for a user story:
+> “As (user persona), I want (to perform this action) so that (I can accomplish
+> this goal).”
+
+## Specification
+
+### Requirements
+
+- When transactions stop being submitted to the network, the network should stop producing events in a timely manner.
+  This will happen after the submitted transactions reach consensus or become stale.
+- The amount of time it takes the network to stop should be close to the C2C time of the network.
+- When a transaction is submitted to a quiesced network, the network should start producing events and reach consensus
+  on this newly submitted transaction.
+- No existing functionality should be affected.
+
+### Quiescence mechanisms
+
+The quiescence feature can be broken up as follows:
+
+- Detecting when to quiesce (quiescence conditions)
+- Quiescing
+- Breaking quiescence
+
+#### Quiescence conditions
+
+##### Rule 1: Non-ancient transactions that need to reach consensus
+
+In its simplest form, detecting when to quiesce is done by counting non-ancient non-consensus transactions. If there are
+no non-ancient non-consensus transactions, there is nothing to reach consensus, so we can stop creating events.
+Additionally, we should also check if there are any pending transactions, if there are, we should not quiesce.
+
+##### Rule 2: Signature transactions should be treated differently
+
+One complication comes from block signature transactions. These transactions do not need to reach consensus. However,
+they do need to be gossiped. If we want a fully signed block with all transactions, we need to create events with these
+transactions and then gossip them. If we were to try to reach consensus on these signature transactions as well, we
+would produce another block that would again need signatures, this way the network would never quiesce.
+
+##### Rule 3: Fully signed blocks
+
+In order for a block to be fully signed, it needs signatures from a majority of nodes. If a node stops creating events
+after it has sent out its signature, other nodes might not be able to do the same as they might not have eligible
+parents. Because of this, we should only stop creating events when a block that encompasses all user transactions
+is fully signed. This can lead to a situation where more rounds reach consensus without any transactions in them, and
+empty blocks end up being produced.
+
+##### Rule 4: Target consensus timestamp (TCT)
+
+Another exception is because some functionalities rely on consensus time advancing (i.e. freeze, scheduled
+transactions). Because these mechanisms rely on consensus time advancing, they don't work if the network is quiescing.
+To circumvent this problem, we need to keep track of what consensus time needs to be reached, we shall call this target
+consensus timestamp (or TCT). After every handled round, the TCT might change. This can be because the previous TCT has
+been reached, or because a new TCT has been set. Quiescence should not be active some duration before the TCT based on
+the wall-clock. This duration shall be configurable, and will be named `tctDuration`.
+
+#### Quiescing
+
+Once all the conditions are met, we can quiesce. This is done by simply stopping event creation. The consensus module
+will stay in this state until one of the following conditions is met:
+
+- A transaction is submitted to the node that needs to be put into an event
+- A node sends us an event with transactions that need to reach consensus
+- `wallClockTime` + `tctDuration` is less than the next target consensus timestamp (TCT)
+
+If either of these conditions is met, we will break quiescence.
+
+#### Breaking quiescence
+
+Breaking quiescence is simply starting event creation again. The complication comes from the tipset algorithm and other
+mechanisms that prevent uncontrolled event creation. Creating an event that does not advance consensus is generally
+considered a bad thing. But if only one node receives a transaction from an end user, it might not be possible to create
+an event that advances consensus. This means that for quiescence, we need to introduce an exception.
+
+The proposal is that we can have events that do not follow the same rules in the tipset and other algorithms. These
+events will be used for breaking quiescence in situations like the one described above. An event used to break
+quiescence will be called a QB (Quiescence Breaker). A QB will not have other-parents, only a self-parent. By having
+only a self-parent, the QB can be easily identified and special rules can be applied to it. To prevent malicious nodes
+from flooding the network with QBs, a QB should not be allowed to have another QB as a self-parent.
+
+Other conditions for breaking quiescence are that the wall-clock time is nearing the next TCT, or we have received an
+event with a user transaction. If this occurs, while the network is quiescing, the network should resume creating events
+regularly. There is no need to create a QB in this case, since the whole network should be resuming event creation.
+
+### Impact on Mirror Node
+Describe impacts, if any, on the Hiero Mirror node.
+
+### Impact on SDK
+Describe Impacts, if any, on the Heiro SDKs
+
+## Backwards Compatibility
+All HIPs that introduce backward incompatibilities must include a section
+describing these incompatibilities and their severity. The HIP must explain how
+the author proposes to deal with these incompatibilities. HIP submissions
+without a sufficient backward compatibility treatise may be rejected outright.
+
+## Security Implications
+If there are security concerns in relation to the HIP, those concerns should be
+explicitly addressed to make sure reviewers of the HIP are aware of them.
+
+## How to Teach This
+For a HIP that adds new functionality or changes interface behaviors, it is
+helpful to include a section on how to teach users, new and experienced, how to
+apply the HIP to their work.
+
+## Reference Implementation
+The reference implementation must be complete before any HIP is given the status
+of “Final.” The final implementation must include test code and documentation.
+
+## Rejected Ideas
+Throughout the discussion of a HIP, various ideas will be proposed that are not
+accepted. Those rejected ideas should be recorded along with the reasoning as to
+why they were rejected. This helps document the thought process behind the final
+version of the HIP and prevents people from revisiting the same rejections later.
+
+## Open Issues
+While a HIP is in draft, new ideas may arise that warrant further discussion.
+List them here so everyone knows they are under consideration but not yet
+resolved. This reduces duplication in future discussions.
+
+## References
+A collection of URLs used as references throughout the HIP.
+
+## Copyright/license
+This document is licensed under the Apache License, Version 2.0 —
+see [LICENSE](../LICENSE) or <https://www.apache.org/licenses/LICENSE-2.0>.
