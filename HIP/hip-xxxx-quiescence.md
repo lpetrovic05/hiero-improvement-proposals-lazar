@@ -122,6 +122,11 @@ Other conditions for breaking quiescence are that the wall-clock time is nearing
 event with a user transaction. If this occurs, while the network is quiescing, the network should resume creating events
 regularly. There is no need to create a QB in this case, since the whole network should be resuming event creation.
 
+#### Hiero details
+
+What was explained above is the high level overview. For Hiero implementation details, please refer to the following
+[quiescence details document](../assets/hip-xxxx-quiescence/quiescence-details.md).
+
 ### Impact on Mirror Node
 Describe impacts, if any, on the Hiero Mirror node.
 

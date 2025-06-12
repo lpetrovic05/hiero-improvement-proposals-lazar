@@ -1,22 +1,6 @@
-# Quiescence
+# Quiescence details
 
----
-
-## Summary
-
-| Metadata           | Entities             |
-|--------------------|----------------------|
-| Designers          | Lazar Petrović       |
-| Functional Impacts | Consensus, Execution |
-| Related Proposals  | N/A                  |
-| HIPS               | N/A                  |
-
----
-
-## Purpose and Context
-
----
-
+The high level description of quiescence can be found in the [Quiescence HIP](../../HIP/hip-xxxx-quiescence.md).
 
 
 ### Side effects of quiescence
