@@ -69,13 +69,34 @@ An additional API is needed for the consensus module to determine if a transacti
 
 ### Configuration
 
-A new configuration option is needed to enable/disable quiescence.
+The following configuration record should be introduced:
+
+```java
+
+import java.time.Duration;
+
+/**
+ * Configuration for quiescence.
+ * @param enabled       indicates if quiescence is enabled
+ * @param tctDuration   the amount of time before the target consensus timestamp (TCT) when quiescence should not be 
+ *                      active
+ */
+@ConfigData("quiescence")
+public record QuiescenceConfig(
+        @ConfigProperty(value = "enabled", defaultValue = "true")
+        boolean enabled,
+        @ConfigProperty(value = "tctDuration", defaultValue = "5s") 
+        Duration tctDuration) {
+}
+
+```
 
 ### Metrics
 
 The following metrics should be added:
 
 - `numTransNeedCons` the number of non-ancient transactions that need to reach consensus.
+- `lastSignedBlock` the latest block number that is fully signed
 
 The following metrics should be modified:
 

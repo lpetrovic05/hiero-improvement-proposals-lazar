@@ -128,10 +128,11 @@ What was explained above is the high level overview. For Hiero implementation de
 [quiescence details document](../assets/hip-xxxx-quiescence/quiescence-details.md).
 
 ### Impact on Mirror Node
-Describe impacts, if any, on the Hiero Mirror node.
+The only impact on Hiero Mirror node is that transactions will not flow constantly. If the network is quiesced, the 
+mirror node will not receive transactions until the network breaks quiescence.
 
 ### Impact on SDK
-Describe Impacts, if any, on the Heiro SDKs
+No impacts on Heiro SDKs are expected.
 
 ## Backwards Compatibility
 All HIPs that introduce backward incompatibilities must include a section
@@ -153,10 +154,14 @@ The reference implementation must be complete before any HIP is given the status
 of “Final.” The final implementation must include test code and documentation.
 
 ## Rejected Ideas
-Throughout the discussion of a HIP, various ideas will be proposed that are not
-accepted. Those rejected ideas should be recorded along with the reasoning as to
-why they were rejected. This helps document the thought process behind the final
-version of the HIP and prevents people from revisiting the same rejections later.
+One of the rejected ideas was a substitute for [Rule 4](#rule-4-target-consensus-timestamp-tct). Instead of event 
+creation keeping track of TCT, the idea was to submit a no-op transaction to the network at this time. The main benefit
+of this idea was that it would remove one of the rules for quiescence, simplifying it. However, this idea was rejected
+because of the following reasons:
+- It would require a new transaction type that would have no other effect than to advance consensus time.
+- Each node would have to submit this transaction, which would lead to a lot of unnecessary transactions being created.
+- If a node's wall-clock is off, we would break quiescence at the wrong time, which would lead to unnecessary events 
+  being created.
 
 ## Open Issues
 While a HIP is in draft, new ideas may arise that warrant further discussion.
