@@ -69,17 +69,15 @@ The quiescence feature can be broken up as follows:
 In its simplest form, detecting when to quiesce is done by counting non-ancient non-consensus transactions. If there are
 no non-ancient non-consensus transactions, there is nothing to reach consensus, so we can stop creating events.
 
-Additionally, we should also check if there are any pending transactions that have been submitted but are not yet part 
-of an event. If there are, we should not quiesce.
-
-##### Rule 2: Signature transactions should be treated differently
-
-One complication comes from block signature transactions. These transactions do not need to reach consensus. However,
+A complication comes from block signature transactions. These transactions do not need to reach consensus. However,
 they do need to be gossiped. If we want a fully signed block with all transactions, we need to create events with these
 transactions and then gossip them. If we were to try to reach consensus on these signature transactions as well, we
 would produce another block that would again need signatures, this way the network would never quiesce.
 
-##### Rule 3: Fully signed blocks
+Additionally, we should also check if there are any pending transactions that have been submitted but are not yet part 
+of an event. If there are, we should not quiesce.
+
+##### Rule 2: Fully signed blocks
 
 In order for a block to be fully signed, it needs signatures from a majority of nodes. If a node stops creating events
 after it has sent out its signature, other nodes might not be able to do the same as they might not have eligible
@@ -87,7 +85,7 @@ parents. Because of this, we should only stop creating events when a block that 
 is fully signed. This can lead to a situation where more rounds reach consensus without any transactions in them, and
 empty blocks end up being produced.
 
-##### Rule 4: Target consensus timestamp (TCT)
+##### Rule 3: Target consensus timestamp (TCT)
 
 Another exception is because some functionalities rely on consensus time advancing (i.e. freeze, scheduled
 transactions). Because these mechanisms rely on consensus time advancing, they don't work if the network is quiescing.
@@ -156,7 +154,7 @@ The reference implementation must be complete before any HIP is given the status
 of “Final.” The final implementation must include test code and documentation.
 
 ## Rejected Ideas
-One of the rejected ideas was a substitute for [Rule 4](#rule-4-target-consensus-timestamp-tct). Instead of event 
+One of the rejected ideas was a substitute for [Rule 4](#rule-3-target-consensus-timestamp-tct). Instead of event 
 creation keeping track of TCT, the idea was to submit a no-op transaction to the network at this time. The main benefit
 of this idea was that it would remove one of the rules for quiescence, simplifying it. However, this idea was rejected
 because of the following reasons:

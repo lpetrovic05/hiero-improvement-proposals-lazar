@@ -11,8 +11,7 @@ Rule 4:
 
 ### Functionality changes
 
-Changes needed for [Rule 1](../../HIP/hip-xxxx-quiescence.md#rule-1-transactions-that-need-to-reach-consensus) &
-[Rule 2](../../HIP/hip-xxxx-quiescence.md#rule-2-signature-transactions-should-be-treated-differently):
+Changes needed for [Rule 1](../../HIP/hip-xxxx-quiescence.md#rule-1-transactions-that-need-to-reach-consensus):
 
 - Each transaction we store in an event or the transaction pool needs to have an additional boolean that indicates if it
   needs to reach consensus or not.
@@ -20,14 +19,14 @@ Changes needed for [Rule 1](../../HIP/hip-xxxx-quiescence.md#rule-1-transactions
   transactions that need to reach consensus, we should not quiesce. This means that the event creator module also needs
   to receive consensus rounds.
 
-Changes needed for [Rule 3](../../HIP/hip-xxxx-quiescence.md#rule-3-fully-signed-blocks):
+Changes needed for [Rule 2](../../HIP/hip-xxxx-quiescence.md#rule-2-fully-signed-blocks):
 
 - The event creator module should store the round number of the latest consensus transaction.
 - The event creator module should also store the latest block number that is fully signed.
 - If the latest fully signed block is less than the latest consensus transaction round, the event creator should not
   quiesce.
 
-Changes needed for [Rule 4](../../HIP/hip-xxxx-quiescence.md#rule-4-target-consensus-timestamp-tct):
+Changes needed for [Rule 3](../../HIP/hip-xxxx-quiescence.md#rule-3-target-consensus-timestamp-tct):
 
 - The event creator module should store the latest TCT.
 - If the latest TCT is less than the current time plus the configured `tctDuration`, the event creator should not
@@ -57,14 +56,15 @@ Changes needed for [Rule 1](../../HIP/hip-xxxx-quiescence.md#rule-1-transactions
   should be done with a new method in the `SwirldMain` interface with a definition like:
   `boolean needsToReachConsensus(Bytes transaction)`. This method should become part of `ApplicationCallbacks`.
 
-Changes needed for [Rule 3](../../HIP/hip-xxxx-quiescence.md#rule-3-fully-signed-blocks):
+Changes needed for [Rule 2](../../HIP/hip-xxxx-quiescence.md#rule-2-fully-signed-blocks):
 
 - In order for the consensus module to know when a block is fully signed, the execution module would need to notify it,
-  an additional API is needed for this.
+  an additional API is needed for this. (How would this API look like?)
 
-Changes needed for [Rule 4](../../HIP/hip-xxxx-quiescence.md#rule-4-target-consensus-timestamp-tct):
+Changes needed for [Rule 3](../../HIP/hip-xxxx-quiescence.md#rule-3-target-consensus-timestamp-tct):
 
-- Execution should provide the latest TCT to the consensus module.
+- Execution should provide the latest TCT to the consensus module. This can be done by adding a new field to
+  `TransactionHandlerResult`.
 
 ## Side effects of quiescence
 
@@ -135,14 +135,12 @@ The following metrics should be removed since they would need to be modified, bu
 
 New unit tests for the event creator should be written for the following scenarios:
 
-- If no non-ancient transactions need to reach consensus, there are no consensus transactions without a boundary round
-  after them, and there is no upcoming freeze; it should stop creating events.
-- If the wall-clock time is less than 1 minute before the freeze time, it should create events regardless of any
+- If all the quiescence rules are met, it should stop creating events.
+- If the `wallClockTime` + `tctDuration` is less than the next TCT, it should create events regardless of any
   transactions that are pending or need to reach consensus.
-- If it is quiesced and there is a pending transaction that does not need to reach consensus (a state/block signature),
-  it should create only a single event with that transaction.
-- If it is quiesced and there is a pending transaction that needs to reach consensus, it should create a QB event with
-  that transaction.
+- If it should not quiesce until all transactions are in a fully signed block.
+- If it is quiesced, there is a pending transaction that needs to reach consensus, and there are no eligible parents; it
+  should create a QB event with that transaction.
 - If a QB is created, it should not create another QB with the same self-parent even if there are pending transactions
   that need to reach consensus.
 
@@ -150,7 +148,7 @@ New unit tests for the event creator should be written for the following scenari
 
 An Otter test should be created that submits transactions periodically and validates the following:
 
-- event creation is stopped when there are no transactions and no freeze is upcoming
-- event creation is started again when a transaction is submitted
-- platform status is updated to `QUIESCED` when event creation is stopped
-- a freeze should be set at the end of this test, and the freeze should occur even if no transactions are submitted
+- Event creation is stopped when transactions stop being submitted
+- Event creation is started again when a transaction is submitted
+- Platform status is updated to `QUIESCED` when event creation is stopped
+- A freeze should be set at the end of this test, and the freeze should occur even if no transactions are submitted
