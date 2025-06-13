@@ -2,8 +2,71 @@
 
 The high level description of quiescence can be found in the [Quiescence HIP](../../HIP/hip-xxxx-quiescence.md).
 
+## Changes
 
-### Side effects of quiescence
+Rule 4:
+
+- After each consensus round is handled, the consensus module can ask execution
+  for the next TCT.
+
+### Functionality changes
+
+Changes needed for [Rule 1](../../HIP/hip-xxxx-quiescence.md#rule-1-transactions-that-need-to-reach-consensus) &
+[Rule 2](../../HIP/hip-xxxx-quiescence.md#rule-2-signature-transactions-should-be-treated-differently):
+
+- Each transaction we store in an event or the transaction pool needs to have an additional boolean that indicates if it
+  needs to reach consensus or not.
+- The event creator module should keep a set of all non-ancient non-consensus events. If any of these events have
+  transactions that need to reach consensus, we should not quiesce. This means that the event creator module also needs
+  to receive consensus rounds.
+
+Changes needed for [Rule 3](../../HIP/hip-xxxx-quiescence.md#rule-3-fully-signed-blocks):
+
+- The event creator module should store the round number of the latest consensus transaction.
+- The event creator module should also store the latest block number that is fully signed.
+- If the latest fully signed block is less than the latest consensus transaction round, the event creator should not
+  quiesce.
+
+Changes needed for [Rule 4](../../HIP/hip-xxxx-quiescence.md#rule-4-target-consensus-timestamp-tct):
+
+- The event creator module should store the latest TCT.
+- If the latest TCT is less than the current time plus the configured `tctDuration`, the event creator should not
+  quiesce.
+
+Other changes:
+
+- If all the above conditions are met, the event creator should stop creating events.
+- The event creator should update the platform status to `QUIESCED` when appropriate.
+- The event creator should create a QB if there are pending transactions in the transaction pool, and there are
+  restrictions on creating events that advance consensus.
+
+### Wiring changes
+
+- Event creator needs to receive consensus rounds (how will the event creator know which events are consensus after a
+  reconnect?)
+- Event creator needs to receive info about which blocks are fully signed (after reconnect as well)
+- Event creator needs to receive the latest TCT (after reconnect as well)
+- Event creator needs to update the platform status
+
+### API
+
+Changes needed for [Rule 1](../../HIP/hip-xxxx-quiescence.md#rule-1-transactions-that-need-to-reach-consensus):
+
+- An additional API is needed for the consensus module to determine if a transaction needs to reach consensus or not.
+  When we receive transactions as part of events through gossip, we need to check if they need to reach consensus. This
+  should be done with a new method in the `SwirldMain` interface with a definition like:
+  `boolean needsToReachConsensus(Bytes transaction)`. This method should become part of `ApplicationCallbacks`.
+
+Changes needed for [Rule 3](../../HIP/hip-xxxx-quiescence.md#rule-3-fully-signed-blocks):
+
+- In order for the consensus module to know when a block is fully signed, the execution module would need to notify it,
+  an additional API is needed for this.
+
+Changes needed for [Rule 4](../../HIP/hip-xxxx-quiescence.md#rule-4-target-consensus-timestamp-tct):
+
+- Execution should provide the latest TCT to the consensus module.
+
+## Side effects of quiescence
 
 Various parts of the system assume that events are constantly being created and consensus is always advancing. With
 quiescence, this is not the case. This means that various parts of the system need to be modified to account for this.
@@ -20,54 +83,7 @@ quiescence, this is not the case. This means that various parts of the system ne
   expected behavior.
 - NOTE FOR REVIEWERS: I probably haven't thought of all the side effects yet, please add any you can think of.
 
----
-
-## Changes
-
-DUMP:
-
-Rule 2:
-
-- The consensus module will need to be able to distinguish between signature transactions and user transactions.
-  An additional API is needed for this.
-
-Rule 3:
-
-- In order for the consensus module to know when a block is fully signed, the
-  execution module would need to notify it. An additional API is needed for this as well.
-
-Rule 4:
-
-- After each consensus round is handled, the consensus module can ask execution
-  for the next TCT.
-
-### Architecture and/or Components
-
-- Each transaction we store in an event or the transaction pool needs to have an additional boolean that indicates if it
-  needs to reach consensus or not.
-- We will need functionality to detect non-ancient transactions that need to reach consensus. This should be part of the
-  event creation module.
-- The event creator module should be updated with information about consensus transactions that do not have a boundary
-  round after them. This will be used to determine if the network can quiesce or not. This information needs to be sent
-  from the transaction handler to the event creator module.
-- The event creator should stop creating events if there are no transactions that need to reach consensus, unless there
-  are pending transactions, or there is less than 1 minute before the freeze time according to the wall-clock.
-- The event creator should update the platform status to `QUIESCED` when appropriate.
-- The event creator should create a QB if there are transactions that need to reach consensus, and there are
-  restrictions on creating events that advance consensus.
-
-### Public API
-
-An additional API is needed for the consensus module to determine if a transaction needs to reach consensus or not.
-
-- When we receive transactions as part of events through gossip, we need to check if they need to reach consensus. This
-  should be done with a new method in the `SwirldMain` interface with a definition like:
-  `boolean needsToReachConsensus(Bytes transaction)`. This method should become part of `ApplicationCallbacks`.
-- When transactions are being submitted to the platform before being put into an event, we also need this same
-  information. So the method in `Platform` should be changed to:
-  `boolean createTransaction(byte[] transaction, boolean needsToReachConsensus)`.
-
-### Configuration
+## Configuration
 
 The following configuration record should be introduced:
 
@@ -85,13 +101,13 @@ import java.time.Duration;
 public record QuiescenceConfig(
         @ConfigProperty(value = "enabled", defaultValue = "true")
         boolean enabled,
-        @ConfigProperty(value = "tctDuration", defaultValue = "5s") 
+        @ConfigProperty(value = "tctDuration", defaultValue = "5s")
         Duration tctDuration) {
 }
 
 ```
 
-### Metrics
+## Metrics
 
 The following metrics should be added:
 

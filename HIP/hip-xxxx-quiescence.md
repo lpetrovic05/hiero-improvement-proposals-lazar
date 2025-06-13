@@ -64,11 +64,13 @@ The quiescence feature can be broken up as follows:
 
 #### Quiescence conditions
 
-##### Rule 1: Non-ancient transactions that need to reach consensus
+##### Rule 1: Transactions that need to reach consensus
 
 In its simplest form, detecting when to quiesce is done by counting non-ancient non-consensus transactions. If there are
 no non-ancient non-consensus transactions, there is nothing to reach consensus, so we can stop creating events.
-Additionally, we should also check if there are any pending transactions, if there are, we should not quiesce.
+
+Additionally, we should also check if there are any pending transactions that have been submitted but are not yet part 
+of an event. If there are, we should not quiesce.
 
 ##### Rule 2: Signature transactions should be treated differently
 
