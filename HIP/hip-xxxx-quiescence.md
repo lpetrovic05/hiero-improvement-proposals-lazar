@@ -20,14 +20,41 @@ superseded-by: <HIP number(s) that supersede this HIP, if applicable. Ex: 104>
 ---
 
 ## Abstract
-Quiescence is a feature that stops event creation when there are no transactions. The purpose of this is to reduce the
-amount of data produced and bandwidth used by low volume networks.
+
+The Quiescence feature introduces a mechanism to pause event creation in Hedera networks during periods of no
+transaction activity, optimizing resource usage in low-volume networks. By halting event generation when no non-ancient,
+non-consensus transactions exist and fully signed blocks are achieved, Quiescence minimizes network traffic,
+computational overhead, and long-term storage of event data and system transactions. This feature is particularly
+advantageous for private or low-traffic Hedera networks, reducing operational costs and enhancing scalability.
+
+Quiescence maintains compatibility with existing consensus mechanisms, ensuring no impact on network security,
+performance, or functionality. This HIP details the quiescence conditions, mechanisms for pausing and resuming event
+creation, and implementation considerations, including impacts on mirror nodes and SDKs. By prioritizing efficiency
+across the transaction lifecycle, Quiescence aligns with Hedera’s commitment to sustainable, high-performance
+distributed ledger technology.
 
 ## Motivation
-The purpose of this is to reduce the amount of data produced and bandwidth used by low volume networks. When there are
-no transactions being submitted to the network, the network can stop creating events and thus stop gossipping and
-producing blocks. This can drastically reduce the amount of data that needs to be stored long term as well as the amount
-of bandwidth used by the network.
+
+Current Hedera network specifications mandate continuous event creation and gossip, even in the absence of transaction
+activity, to maintain consensus and network state. While robust for high-traffic networks, this approach is inefficient
+for low-volume or private networks, where prolonged periods without transactions are common. The constant generation of
+events and blocks in such scenarios produces redundant data, consuming significant bandwidth, computational resources,
+and long-term storage capacity. These inefficiencies lead to increased operational costs and unnecessary resource
+utilization, misaligning with the needs of lightweight or intermittently active networks.
+
+By enabling the network to pause event creation when no non-ancient, non-consensus transactions are pending and fully
+signed blocks are achieved, the Quiescence feature addresses these shortcomings. This pause halts gossip and block
+production, drastically reducing data output, bandwidth usage, and storage demands.
+
+Additionally, Quiescence lowers the technical requirements for consensus nodes in low-volume networks. By minimizing
+event generation and gossip during idle periods, the feature reduces CPU usage, memory demands, and network I/O,
+allowing nodes to operate on less powerful hardware or in resource-constrained environments. This makes it easier to
+deploy and maintain consensus nodes, further reducing operational costs and enhancing accessibility for smaller network
+participants.
+
+By optimizing resource allocation across the transaction lifecycle, Quiescence enhances the efficiency,
+cost-effectiveness, and scalability of Hedera for low-traffic use cases while preserving consensus integrity and
+functionality.
 
 ## Rationale
 The rationale fleshes out the specification by describing why particular design
@@ -38,10 +65,21 @@ The rationale should provide evidence of consensus within the community and
 discuss important objections or concerns raised during the discussion.
 
 ## User stories
-Provide a list of "user stories" to express how this feature, functionality,
-improvement, or tool will be used by the end user. Template for a user story:
-> “As (user persona), I want (to perform this action) so that (I can accomplish
-> this goal).”
+
+1. As a private network operator, I want the Hiero network to pause event creation when no transactions are submitted,
+   so that I can reduce bandwidth and storage costs for my low-traffic Hedera network.
+
+2. As a consensus node administrator, I want Quiescence to minimize CPU, network and memory usage during idle periods,
+   so that I can run nodes on less powerful hardware and lower operational expenses.
+
+3. As a developer using Solo to test, I want the network to stop gossip and block production when inactive, so that I
+   can deploy cost-effective solutions for intermittent transaction use cases.
+
+4. As a block node or mirror node operator, I want Quiescence to reduce the flow of unnecessary event data during idle
+   times, so that I can optimize storage and processing resources on my node.
+
+5. As a network participant with scheduled transactions, I want Quiescence to resume event creation automatically before
+   the target consensus timestamp, so that my scheduled transactions execute on time without manual intervention.
 
 ## Specification
 
@@ -74,7 +112,7 @@ they do need to be gossiped. If we want a fully signed block with all transactio
 transactions and then gossip them. If we were to try to reach consensus on these signature transactions as well, we
 would produce another block that would again need signatures, this way the network would never quiesce.
 
-Additionally, we should also check if there are any pending transactions that have been submitted but are not yet part 
+Additionally, we should also check if there are any pending transactions that have been submitted but are not yet part
 of an event. If there are, we should not quiesce.
 
 ##### Rule 2: Fully signed blocks
@@ -128,7 +166,7 @@ What was explained above is the high level overview. For Hiero implementation de
 [quiescence details document](../assets/hip-xxxx-quiescence/quiescence-details.md).
 
 ### Impact on Mirror Node
-The only impact on Hiero Mirror node is that transactions will not flow constantly. If the network is quiesced, the 
+The only impact on Hiero Mirror node is that transactions will not flow constantly. If the network is quiesced, the
 mirror node will not receive transactions until the network breaks quiescence.
 
 ### Impact on SDK
@@ -154,13 +192,13 @@ The reference implementation must be complete before any HIP is given the status
 of “Final.” The final implementation must include test code and documentation.
 
 ## Rejected Ideas
-One of the rejected ideas was a substitute for [Rule 4](#rule-3-target-consensus-timestamp-tct). Instead of event 
+One of the rejected ideas was a substitute for [Rule 4](#rule-3-target-consensus-timestamp-tct). Instead of event
 creation keeping track of TCT, the idea was to submit a no-op transaction to the network at this time. The main benefit
 of this idea was that it would remove one of the rules for quiescence, simplifying it. However, this idea was rejected
 because of the following reasons:
 - It would require a new transaction type that would have no other effect than to advance consensus time.
 - Each node would have to submit this transaction, which would lead to a lot of unnecessary transactions being created.
-- If a node's wall-clock is off, we would break quiescence at the wrong time, which would lead to unnecessary events 
+- If a node's wall-clock is off, we would break quiescence at the wrong time, which would lead to unnecessary events
   being created.
 
 ## Open Issues
