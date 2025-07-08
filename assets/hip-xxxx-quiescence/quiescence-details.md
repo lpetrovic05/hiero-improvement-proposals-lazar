@@ -4,19 +4,16 @@ The high level description of quiescence can be found in the [Quiescence HIP](..
 
 ## Changes
 
-Rule 4:
-
-- After each consensus round is handled, the consensus module can ask execution
-  for the next TCT.
-
 ### Functionality changes
 
 Changes needed for [Rule 1](../../HIP/hip-xxxx-quiescence.md#rule-1-transactions-that-need-to-reach-consensus):
 
-- Each transaction we store in an event or the transaction pool needs to have an additional boolean that indicates if it
-  needs to reach consensus or not.
-- The event creator module should keep a set of all non-ancient non-consensus events. If any of these events have
-  transactions that need to reach consensus, we should not quiesce. This means that the event creator module also needs
+- The transaction pool needs to move to execution. When the consensus module is ready to create a new event, it must ask
+  execution for transactions to include in the event.
+- The transaction resubmitter component should be deleted. Output of the stale event detector should be modified to
+  notify the execution of the stale events.
+- The new quiescence module should keep a set of all non-ancient non-consensus events. If any of these events have
+  transactions that need to reach consensus, we should not quiesce. This means that the quiescence module also needs
   to receive consensus rounds.
 
 Changes needed for [Rule 2](../../HIP/hip-xxxx-quiescence.md#rule-2-fully-signed-blocks):
@@ -32,12 +29,19 @@ Changes needed for [Rule 3](../../HIP/hip-xxxx-quiescence.md#rule-3-target-conse
 - If the latest TCT is less than the current time plus the configured `tctDuration`, the event creator should not
   quiesce.
 
+Rule 4:
+
+- After each consensus round is handled, the consensus module can ask execution
+  for the next TCT.
+
 Other changes:
 
 - If all the above conditions are met, the event creator should stop creating events.
 - The event creator should update the platform status to `QUIESCED` when appropriate.
-- The event creator should create a QB if there are pending transactions in the transaction pool, and there are
-  restrictions on creating events that advance consensus.
+- The event creator should create a QB if it is told to break quiescence, there is at least one transaction to include
+  in a new event, and there are restrictions on creating events that advance consensus. If we are told to break
+  quiescence and there are no transactions to include in a new event, and the tipset algorithm does not allow the
+  creation of a new event, no event will be created until a tipset-legal event can be created.
 
 ### Wiring changes
 
@@ -51,20 +55,36 @@ Other changes:
 
 Changes needed for [Rule 1](../../HIP/hip-xxxx-quiescence.md#rule-1-transactions-that-need-to-reach-consensus):
 
-- An additional API is needed for the consensus module to determine if a transaction needs to reach consensus or not.
-  When we receive transactions as part of events through gossip, we need to check if they need to reach consensus. This
-  should be done with a new method in the `SwirldMain` interface with a definition like:
-  `boolean needsToReachConsensus(Bytes transaction)`. This method should become part of `ApplicationCallbacks`.
+An additional API is needed for execution to tell the consensus module to quiesce or break quiescence.
 
-Changes needed for [Rule 2](../../HIP/hip-xxxx-quiescence.md#rule-2-fully-signed-blocks):
+- Two new methods on the `Platform` interface will be created:
+  `void quiesce()` and `void breakQuiescence()`. These methods will send data via a new input wire to the Event Creator
+  component. The Platform Status Component will either get this data directly or via the Event Creator component.
+- The existing `Platform` method `boolean createTransaction(byte[] transaction)` will be removed.
+- A new required field when creating the `PlatformBuilder` will be a transaction supplier. The consensus module will use
+  this supplier to put transactions in new events.
 
-- In order for the consensus module to know when a block is fully signed, the execution module would need to notify it,
-  an additional API is needed for this. (How would this API look like?)
+### Execution Conceptual Changes
 
-Changes needed for [Rule 3](../../HIP/hip-xxxx-quiescence.md#rule-3-target-consensus-timestamp-tct):
+The execution layer will need to track the number of transactions that need to reach consensus. This number should be
+incremented in the following cases:
 
-- Execution should provide the latest TCT to the consensus module. This can be done by adding a new field to
-  `TransactionHandlerResult`.
+1. A transaction is submitted to this node by a user.
+2. A user transaction is received in pre-handle that was submitted by another node.
+3. A user transaction submitted by this node goes stale and is resubmitted.
+
+The number should be decremented in the following cases:
+
+1. A user transaction is handled and the result is written to a block.
+
+Execution must also track the latest block with user transactions. When the latest block with user transactions is fully
+signed, it can instruct the consensus module to quiesce. The only exception to this rule is if the wall clock time is
+within the configured duration of an upcoming TCT (Target Consensus Time).
+
+Execution will instruct the consensus module to break quiescence when any of the following conditions are met:
+
+1. A user transaction is added to this node's execution-owned transaction pool.
+2. A user transaction is received in pre-handle.
 
 ## Side effects of quiescence
 
@@ -85,7 +105,7 @@ quiescence, this is not the case. This means that various parts of the system ne
 
 ## Configuration
 
-The following configuration record should be introduced:
+The following configuration record should be introduced in execution:
 
 ```java
 
@@ -116,12 +136,12 @@ The following metrics should be added:
 
 The following metrics should be modified:
 
-- `secC2C` & `secR2C` should be modified to only track events that have transactions that need to reach consensus. If
-  this is not done, these metrics will have huge spikes when quiescence is broken.
+- `secC2C`, `secC2RC` & `secR2C` should be modified to only track events that have transactions that need to reach
+  consensus. If this is not done, these metrics will have huge spikes when quiescence is broken. TODO: figure out what 
+  to do for this now that the consensus module will not be tracking what needs to reach consensus.
 
 The following metrics should be removed since they would need to be modified, but are not used:
 
-- `secC2RC`
 - `secSC2T`
 - `secOR2T`
 - `secR2F`

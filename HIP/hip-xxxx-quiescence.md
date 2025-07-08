@@ -21,21 +21,21 @@ superseded-by: <HIP number(s) that supersede this HIP, if applicable. Ex: 104>
 
 ## Abstract
 
-The Quiescence feature introduces a mechanism to pause event creation in Hedera networks during periods of no
+The Quiescence feature introduces a mechanism to pause event creation in Hiero networks during periods of no
 transaction activity, optimizing resource usage in low-volume networks. By halting event generation when no non-ancient,
 non-consensus transactions exist and fully signed blocks are achieved, Quiescence minimizes network traffic,
 computational overhead, and long-term storage of event data and system transactions. This feature is particularly
-advantageous for private or low-traffic Hedera networks, reducing operational costs and enhancing scalability.
+advantageous for private or low-traffic Hiero networks, reducing operational costs and enhancing scalability.
 
 Quiescence maintains compatibility with existing consensus mechanisms, ensuring no impact on network security,
 performance, or functionality. This HIP details the quiescence conditions, mechanisms for pausing and resuming event
 creation, and implementation considerations, including impacts on mirror nodes and SDKs. By prioritizing efficiency
-across the transaction lifecycle, Quiescence aligns with Hedera’s commitment to sustainable, high-performance
+across the transaction lifecycle, Quiescence aligns with Hiero’s commitment to sustainable, high-performance
 distributed ledger technology.
 
 ## Motivation
 
-Current Hedera network specifications mandate continuous event creation and gossip, even in the absence of transaction
+Current Hiero network specifications mandate continuous event creation and gossip, even in the absence of transaction
 activity, to maintain consensus and network state. While robust for high-traffic networks, this approach is inefficient
 for low-volume or private networks, where prolonged periods without transactions are common. The constant generation of
 events and blocks in such scenarios produces redundant data, consuming significant bandwidth, computational resources,
@@ -53,7 +53,7 @@ deploy and maintain consensus nodes, further reducing operational costs and enha
 participants.
 
 By optimizing resource allocation across the transaction lifecycle, Quiescence enhances the efficiency,
-cost-effectiveness, and scalability of Hedera for low-traffic use cases while preserving consensus integrity and
+cost-effectiveness, and scalability of Hiero for low-traffic use cases while preserving consensus integrity and
 functionality.
 
 ## Rationale
@@ -67,7 +67,7 @@ discuss important objections or concerns raised during the discussion.
 ## User stories
 
 1. As a private network operator, I want the Hiero network to pause event creation when no transactions are submitted,
-   so that I can reduce bandwidth and storage costs for my low-traffic Hedera network.
+   so that I can reduce bandwidth and storage costs for my low-traffic Hiero network.
 
 2. As a consensus node administrator, I want Quiescence to minimize CPU, network and memory usage during idle periods,
    so that I can run nodes on less powerful hardware and lower operational expenses.
@@ -87,7 +87,7 @@ discuss important objections or concerns raised during the discussion.
 
 - When transactions stop being submitted to the network, the network should stop producing events in a timely manner.
   This will happen after the submitted transactions reach consensus or become stale.
-- The amount of time it takes the network to stop should be close to the C2C time of the network.
+- The amount of time it takes the network to stop should be close to the C2RC time of the network.
 - When a transaction is submitted to a quiesced network, the network should start producing events and reach consensus
   on this newly submitted transaction.
 - No existing functionality should be affected.
@@ -166,8 +166,8 @@ What was explained above is the high level overview. For Hiero implementation de
 [quiescence details document](../assets/hip-xxxx-quiescence/quiescence-details.md).
 
 ### Impact on Mirror Node
-The only impact on Hiero Mirror node is that transactions will not flow constantly. If the network is quiesced, the
-mirror node will not receive transactions until the network breaks quiescence.
+The only impact on Hiero Mirror node is that blocks will not flow constantly. If the network is quiesced, the mirror
+node will not receive blocks until the network breaks quiescence.
 
 ### Impact on SDK
 No impacts on Heiro SDKs are expected.
