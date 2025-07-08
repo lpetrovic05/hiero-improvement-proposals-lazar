@@ -192,7 +192,7 @@ The reference implementation must be complete before any HIP is given the status
 of “Final.” The final implementation must include test code and documentation.
 
 ## Rejected Ideas
-One of the rejected ideas was a substitute for [Rule 4](#rule-3-target-consensus-timestamp-tct). Instead of event
+One of the rejected ideas was a substitute for [Rule 3](#rule-3-target-consensus-timestamp-tct). Instead of event
 creation keeping track of TCT, the idea was to submit a no-op transaction to the network at this time. The main benefit
 of this idea was that it would remove one of the rules for quiescence, simplifying it. However, this idea was rejected
 because of the following reasons:

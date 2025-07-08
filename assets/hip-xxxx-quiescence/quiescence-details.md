@@ -2,6 +2,12 @@
 
 The high level description of quiescence can be found in the [Quiescence HIP](../../HIP/hip-xxxx-quiescence.md).
 
+## Unknowns
+
+- How will know know which events are consensus after a reconnect? 
+- Figure out what to do about [metric modification](#metrics). The consensus module will not be tracking what needs to 
+  reach consensus, so it cannot modify the metrics. Should these metrics move to execution?
+
 ## Changes
 
 ### Functionality changes
@@ -29,11 +35,6 @@ Changes needed for [Rule 3](../../HIP/hip-xxxx-quiescence.md#rule-3-target-conse
 - If the latest TCT is less than the current time plus the configured `tctDuration`, the event creator should not
   quiesce.
 
-Rule 4:
-
-- After each consensus round is handled, the consensus module can ask execution
-  for the next TCT.
-
 Other changes:
 
 - If all the above conditions are met, the event creator should stop creating events.
@@ -45,8 +46,7 @@ Other changes:
 
 ### Wiring changes
 
-- Event creator needs to receive consensus rounds (how will the event creator know which events are consensus after a
-  reconnect?)
+- Event creator needs to receive consensus rounds 
 - Event creator needs to receive info about which blocks are fully signed (after reconnect as well)
 - Event creator needs to receive the latest TCT (after reconnect as well)
 - Event creator needs to update the platform status
@@ -137,8 +137,7 @@ The following metrics should be added:
 The following metrics should be modified:
 
 - `secC2C`, `secC2RC` & `secR2C` should be modified to only track events that have transactions that need to reach
-  consensus. If this is not done, these metrics will have huge spikes when quiescence is broken. TODO: figure out what 
-  to do for this now that the consensus module will not be tracking what needs to reach consensus.
+  consensus. If this is not done, these metrics will have huge spikes when quiescence is broken.
 
 The following metrics should be removed since they would need to be modified, but are not used:
 
