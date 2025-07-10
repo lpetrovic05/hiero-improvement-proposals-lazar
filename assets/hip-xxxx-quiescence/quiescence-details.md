@@ -4,7 +4,7 @@ The high level description of quiescence can be found in the [Quiescence HIP](..
 
 ## Unknowns
 
-- How will know know which events are consensus after a reconnect? 
+- How will we know which events are consensus after a reconnect? 
 - Figure out what to do about [metric modification](#metrics). The consensus module will not be tracking what needs to 
   reach consensus, so it cannot modify the metrics. Should these metrics move to execution?
 
@@ -52,8 +52,6 @@ Other changes:
 - Event creator needs to update the platform status
 
 ### API
-
-Changes needed for [Rule 1](../../HIP/hip-xxxx-quiescence.md#rule-1-transactions-that-need-to-reach-consensus):
 
 An additional API is needed for execution to tell the consensus module to quiesce or break quiescence.
 

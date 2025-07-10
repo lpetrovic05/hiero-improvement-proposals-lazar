@@ -21,65 +21,51 @@ superseded-by: <HIP number(s) that supersede this HIP, if applicable. Ex: 104>
 
 ## Abstract
 
-The Quiescence feature introduces a mechanism to pause event creation in Hiero networks during periods of no
-transaction activity, optimizing resource usage in low-volume networks. By halting event generation when no non-ancient,
-non-consensus transactions exist and fully signed blocks are achieved, Quiescence minimizes network traffic,
-computational overhead, and long-term storage of event data and system transactions. This feature is particularly
-advantageous for private or low-traffic Hiero networks, reducing operational costs and enhancing scalability.
-
-Quiescence maintains compatibility with existing consensus mechanisms, ensuring no impact on network security,
-performance, or functionality. This HIP details the quiescence conditions, mechanisms for pausing and resuming event
-creation, and implementation considerations, including impacts on mirror nodes and SDKs. By prioritizing efficiency
-across the transaction lifecycle, Quiescence aligns with Hiero’s commitment to sustainable, high-performance
-distributed ledger technology.
+The Quiescence feature introduces a mechanism to pause event creation in Hiero networks during periods of no transaction
+activity, optimizing resource usage in low-volume networks. By halting event generation when all user transactions have
+reached consensus and are in fully signed blocks, Quiescence minimizes network traffic, computational overhead, and
+long-term storage of event data and system transactions. This feature is particularly advantageous for private or
+low-traffic Hiero networks, reducing operational and reoccurring long term storage costs. Quiescence maintains
+compatibility with existing consensus mechanisms, ensuring no impact on network security, performance, or functionality.
+This HIP details the quiescence conditions, mechanisms for pausing and resuming event creation, and implementation
+considerations, including impacts on mirror nodes and SDKs. By prioritizing efficiency across the transaction lifecycle,
+Quiescence aligns with Hiero’s commitment to sustainable, efficient distributed ledger technology.
 
 ## Motivation
 
-Current Hiero network specifications mandate continuous event creation and gossip, even in the absence of transaction
-activity, to maintain consensus and network state. While robust for high-traffic networks, this approach is inefficient
-for low-volume or private networks, where prolonged periods without transactions are common. The constant generation of
-events and blocks in such scenarios produces redundant data, consuming significant bandwidth, computational resources,
-and long-term storage capacity. These inefficiencies lead to increased operational costs and unnecessary resource
-utilization, misaligning with the needs of lightweight or intermittently active networks.
+Current Hiero mainnet specifications mandate continuous event creation and gossip, even in the absence of transaction
+activity, to maintain consensus and network state. While robust for consistent network traffic, this approach is
+inefficient for networks with periodic usage where prolonged periods without transactions are common.
 
-By enabling the network to pause event creation when no non-ancient, non-consensus transactions are pending and fully
-signed blocks are achieved, the Quiescence feature addresses these shortcomings. This pause halts gossip and block
-production, drastically reducing data output, bandwidth usage, and storage demands.
+The constant generation of events and blocks in such scenarios produces unnecessary data resulting in increased
+bandwidth, CPU, and long-term storage usage. These inefficiencies lead to increased operational costs and unnecessary
+resource utilization, misaligning with the needs of lightweight or intermittently active networks. By enabling the
+network to pause event creation when no non-ancient, non-consensus transactions are pending and fully signed blocks are
+achieved, the Quiescence feature addresses these shortcomings.
 
-Additionally, Quiescence lowers the technical requirements for consensus nodes in low-volume networks. By minimizing
-event generation and gossip during idle periods, the feature reduces CPU usage, memory demands, and network I/O,
-allowing nodes to operate on less powerful hardware or in resource-constrained environments. This makes it easier to
-deploy and maintain consensus nodes, further reducing operational costs and enhancing accessibility for smaller network
-participants.
-
-By optimizing resource allocation across the transaction lifecycle, Quiescence enhances the efficiency,
-cost-effectiveness, and scalability of Hiero for low-traffic use cases while preserving consensus integrity and
-functionality.
+Quiescence provides a cost-effective mode of operation for Hiero networks with intermittent usage.
 
 ## Rationale
-The rationale fleshes out the specification by describing why particular design
-decisions were made. It should describe alternate designs that were considered
-and related work, e.g. how the feature is supported in other ecosystems.
 
-The rationale should provide evidence of consensus within the community and
-discuss important objections or concerns raised during the discussion.
+The rationale fleshes out the specification by describing why particular design decisions were made. It should describe
+alternate designs that were considered and related work, e.g. how the feature is supported in other ecosystems. The
+rationale should provide evidence of consensus within the community and discuss important objections or concerns raised
+during the discussion.
 
 ## User stories
 
 1. As a private network operator, I want the Hiero network to pause event creation when no transactions are submitted,
    so that I can reduce bandwidth and storage costs for my low-traffic Hiero network.
-
 2. As a consensus node administrator, I want Quiescence to minimize CPU, network and memory usage during idle periods,
-   so that I can run nodes on less powerful hardware and lower operational expenses.
-
+   so that I can run a node with lower operational expenses.
 3. As a developer using Solo to test, I want the network to stop gossip and block production when inactive, so that I
    can deploy cost-effective solutions for intermittent transaction use cases.
-
 4. As a block node or mirror node operator, I want Quiescence to reduce the flow of unnecessary event data during idle
    times, so that I can optimize storage and processing resources on my node.
-
-5. As a network participant with scheduled transactions, I want Quiescence to resume event creation automatically before
-   the target consensus timestamp, so that my scheduled transactions execute on time without manual intervention.
+5. As a network participant with scheduled transactions, I want a Hiero network to come out of Quiescence automatically
+   before the target consensus timestamp, so that my scheduled transactions execute on time without manual intervention.
+6. As a network participant with non-scheduled transactions, I want a Hiero network to come out of Quiescence to process
+   my non-scheduled transactions.
 
 ## Specification
 
@@ -166,49 +152,68 @@ What was explained above is the high level overview. For Hiero implementation de
 [quiescence details document](../assets/hip-xxxx-quiescence/quiescence-details.md).
 
 ### Impact on Mirror Node
+
 The only impact on Hiero Mirror node is that blocks will not flow constantly. If the network is quiesced, the mirror
 node will not receive blocks until the network breaks quiescence.
 
 ### Impact on SDK
+
 No impacts on Heiro SDKs are expected.
 
 ## Backwards Compatibility
+
 All HIPs that introduce backward incompatibilities must include a section
 describing these incompatibilities and their severity. The HIP must explain how
 the author proposes to deal with these incompatibilities. HIP submissions
 without a sufficient backward compatibility treatise may be rejected outright.
 
 ## Security Implications
+
 If there are security concerns in relation to the HIP, those concerns should be
 explicitly addressed to make sure reviewers of the HIP are aware of them.
 
 ## How to Teach This
+
 For a HIP that adds new functionality or changes interface behaviors, it is
 helpful to include a section on how to teach users, new and experienced, how to
 apply the HIP to their work.
 
 ## Reference Implementation
+
 The reference implementation must be complete before any HIP is given the status
 of “Final.” The final implementation must include test code and documentation.
 
 ## Rejected Ideas
+
+### TCT alternative
+
 One of the rejected ideas was a substitute for [Rule 3](#rule-3-target-consensus-timestamp-tct). Instead of event
 creation keeping track of TCT, the idea was to submit a no-op transaction to the network at this time. The main benefit
 of this idea was that it would remove one of the rules for quiescence, simplifying it. However, this idea was rejected
 because of the following reasons:
+
 - It would require a new transaction type that would have no other effect than to advance consensus time.
 - Each node would have to submit this transaction, which would lead to a lot of unnecessary transactions being created.
 - If a node's wall-clock is off, we would break quiescence at the wrong time, which would lead to unnecessary events
   being created.
 
+### Consensus concern
+
+We considered having the consensus module keep track of all three quiescence conditions, but this was rejected because
+they are already concerns of the execution module. Pushing these concerns into the consensus module would create several
+new touchpoints between the two modules, which would complicate the design and muddle responsibilities.
+
 ## Open Issues
+
 While a HIP is in draft, new ideas may arise that warrant further discussion.
 List them here so everyone knows they are under consideration but not yet
 resolved. This reduces duplication in future discussions.
 
 ## References
+
 A collection of URLs used as references throughout the HIP.
 
 ## Copyright/license
+
 This document is licensed under the Apache License, Version 2.0 —
 see [LICENSE](../LICENSE) or <https://www.apache.org/licenses/LICENSE-2.0>.
