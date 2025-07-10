@@ -162,23 +162,20 @@ No impacts on Heiro SDKs are expected.
 
 ## Backwards Compatibility
 
-All HIPs that introduce backward incompatibilities must include a section
-describing these incompatibilities and their severity. The HIP must explain how
-the author proposes to deal with these incompatibilities. HIP submissions
-without a sufficient backward compatibility treatise may be rejected outright.
+There are no impacts to backwards compatibility.
 
-## Security Implications
+## Security Implications TODO
 
 If there are security concerns in relation to the HIP, those concerns should be
 explicitly addressed to make sure reviewers of the HIP are aware of them.
 
-## How to Teach This
+## How to Teach This TODO
 
 For a HIP that adds new functionality or changes interface behaviors, it is
 helpful to include a section on how to teach users, new and experienced, how to
 apply the HIP to their work.
 
-## Reference Implementation
+## Reference Implementation TODO
 
 The reference implementation must be complete before any HIP is given the status
 of “Final.” The final implementation must include test code and documentation.
@@ -203,13 +200,13 @@ We considered having the consensus module keep track of all three quiescence con
 they are already concerns of the execution module. Pushing these concerns into the consensus module would create several
 new touchpoints between the two modules, which would complicate the design and muddle responsibilities.
 
-## Open Issues
+## Open Issues TODO
 
 While a HIP is in draft, new ideas may arise that warrant further discussion.
 List them here so everyone knows they are under consideration but not yet
 resolved. This reduces duplication in future discussions.
 
-## References
+## References TODO
 
 A collection of URLs used as references throughout the HIP.
 

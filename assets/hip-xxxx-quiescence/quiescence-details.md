@@ -1,23 +1,106 @@
-# Quiescence details
+# Quiescence implementation details
 
 The high level description of quiescence can be found in the [Quiescence HIP](../../HIP/hip-xxxx-quiescence.md).
 
 ## Unknowns
 
-- How will we know which events are consensus after a reconnect? 
-- Figure out what to do about [metric modification](#metrics). The consensus module will not be tracking what needs to 
+- How will we know which events are consensus after a reconnect or restart?
+- Figure out what to do about [metric modification](#metrics). The consensus module will not be tracking what needs to
   reach consensus, so it cannot modify the metrics. Should these metrics move to execution?
+- Various parts of the system assume that events are constantly being created and consensus is
+  always advancing. With quiescence, this is not the case. This means that various parts of the system need to be
+  modified to account for this. NOTE FOR REVIEWERS: Please try to think of any possible issues that may arise from
+  this change. 
 
-## Changes
+## Quiescence component
+
+A new quiescence component needs to be created to track all the quiescence conditions. It needs to receive the following
+data:
+
+- Pre-consensus events
+- Consensus rounds
+- TCTs
+- Fully signed blocks
+- Transaction pool counts
+
+### Quiescence configuration
+
+The following configuration record should be introduced to configure quiescence:
+
+```java
+
+import java.time.Duration;
+
+/**
+ * Configuration for quiescence.
+ * @param enabled       indicates if quiescence is enabled
+ * @param tctDuration   the amount of time before the target consensus timestamp (TCT) when quiescence should not be 
+ *                      active
+ */
+@ConfigData("quiescence")
+public record QuiescenceConfig(
+        @ConfigProperty(value = "enabled", defaultValue = "true")
+        boolean enabled,
+        @ConfigProperty(value = "tctDuration", defaultValue = "5s")
+        Duration tctDuration) {
+}
+
+```
+
+## Cross-module changes
+
+### Transaction pool move
+
+- The transaction pool (along with `TransactionConfig`) needs to move to execution. When the consensus module is ready
+  to create a new event, it must ask execution for transactions to include in the event.
+- A new required field when creating the `PlatformBuilder` will be a transaction supplier. The consensus module will use
+  this supplier to put transactions in new events.
+- The existing `Platform` method `boolean createTransaction(byte[] transaction)` will be removed.
+- All apps need to be updated.
+
+### Quiescence API TODO
+
+- Two new methods on the `Platform` interface will be created:
+  `void quiesce()` and `void breakQuiescence()`. These methods will send data via a new input wire to the Event Creator
+  component. The Platform Status Component will either get this data directly or via the Event Creator component.
+
+## Consensus module changes
+
+- The transaction resubmitter component should be deleted. Output of the stale event detector should be modified to
+  notify the execution of the stale events. TODO specify the API for this.
+- The platform status `ACTIVE` currently moves to `CHECKING` based on wall-clock time. We will need to add a
+  `QUIESCED` status.
+- The `SignedStateSentinel` uses wall-clock time to determine if a signed state is old. This will need to be modified to
+  use the take quiescence into account.
+- `PcesConfig.minimumRetentionPeriod` uses wall-clock time to determine how long to keep events, this may need to be
+  modified.
+
+## Execution module changes
+
+The execution layer will need to track the number of transactions that need to reach consensus. This number should be
+incremented in the following cases:
+
+1. A transaction is submitted to this node by a user.
+2. A user transaction is received in pre-handle that was submitted by another node.
+3. A user transaction submitted by this node goes stale and is resubmitted.
+
+The number should be decremented in the following cases:
+
+1. A user transaction is handled and the result is written to a block.
+
+Execution must also track the latest block with user transactions. When the latest block with user transactions is fully
+signed, it can instruct the consensus module to quiesce. The only exception to this rule is if the wall clock time is
+within the configured duration of an upcoming TCT (Target Consensus Time).
+
+Execution will instruct the consensus module to break quiescence when any of the following conditions are met:
+
+1. A user transaction is added to this node's execution-owned transaction pool.
+2. A user transaction is received in pre-handle.
 
 ### Functionality changes
 
 Changes needed for [Rule 1](../../HIP/hip-xxxx-quiescence.md#rule-1-transactions-that-need-to-reach-consensus):
 
-- The transaction pool needs to move to execution. When the consensus module is ready to create a new event, it must ask
-  execution for transactions to include in the event.
-- The transaction resubmitter component should be deleted. Output of the stale event detector should be modified to
-  notify the execution of the stale events.
 - The new quiescence module should keep a set of all non-ancient non-consensus events. If any of these events have
   transactions that need to reach consensus, we should not quiesce. This means that the quiescence module also needs
   to receive consensus rounds.
@@ -44,88 +127,13 @@ Other changes:
   quiescence and there are no transactions to include in a new event, and the tipset algorithm does not allow the
   creation of a new event, no event will be created until a tipset-legal event can be created.
 
-### Wiring changes
-
-- Event creator needs to receive consensus rounds 
-- Event creator needs to receive info about which blocks are fully signed (after reconnect as well)
-- Event creator needs to receive the latest TCT (after reconnect as well)
-- Event creator needs to update the platform status
-
-### API
-
-An additional API is needed for execution to tell the consensus module to quiesce or break quiescence.
-
-- Two new methods on the `Platform` interface will be created:
-  `void quiesce()` and `void breakQuiescence()`. These methods will send data via a new input wire to the Event Creator
-  component. The Platform Status Component will either get this data directly or via the Event Creator component.
-- The existing `Platform` method `boolean createTransaction(byte[] transaction)` will be removed.
-- A new required field when creating the `PlatformBuilder` will be a transaction supplier. The consensus module will use
-  this supplier to put transactions in new events.
-
-### Execution Conceptual Changes
-
-The execution layer will need to track the number of transactions that need to reach consensus. This number should be
-incremented in the following cases:
-
-1. A transaction is submitted to this node by a user.
-2. A user transaction is received in pre-handle that was submitted by another node.
-3. A user transaction submitted by this node goes stale and is resubmitted.
-
-The number should be decremented in the following cases:
-
-1. A user transaction is handled and the result is written to a block.
-
-Execution must also track the latest block with user transactions. When the latest block with user transactions is fully
-signed, it can instruct the consensus module to quiesce. The only exception to this rule is if the wall clock time is
-within the configured duration of an upcoming TCT (Target Consensus Time).
-
-Execution will instruct the consensus module to break quiescence when any of the following conditions are met:
-
-1. A user transaction is added to this node's execution-owned transaction pool.
-2. A user transaction is received in pre-handle.
-
-## Side effects of quiescence
-
-Various parts of the system assume that events are constantly being created and consensus is always advancing. With
-quiescence, this is not the case. This means that various parts of the system need to be modified to account for this.
-
-- The `SignedStateSentinel` uses wall-clock time to determine if a signed state is old. This will need to be modified to
-  use the take quiescence into account.
-- `PcesConfig.minimumRetentionPeriod` uses wall-clock time to determine how long to keep events.
-- The platform status `ACTIVE` currently moves to `CHECKING` based on wall-clock time. We will need to add a
-  `QUIESCED` status.
-- Metrics can produce misleading information due to the pause in event creation. Example: `secC2C` tracks the amount of
-  time that passes from an event being created to it reaching consensus. Ordinarily, this is a few seconds. If this
-  value spikes, it is usually an indicator of a performance issue in the network. If quiescence is not taken into
-  account, this value will spike to the amount of time the network was quiesced, which would look like an issue, but is
-  expected behavior.
-- NOTE FOR REVIEWERS: I probably haven't thought of all the side effects yet, please add any you can think of.
-
-## Configuration
-
-The following configuration record should be introduced in execution:
-
-```java
-
-import java.time.Duration;
-
-/**
- * Configuration for quiescence.
- * @param enabled       indicates if quiescence is enabled
- * @param tctDuration   the amount of time before the target consensus timestamp (TCT) when quiescence should not be 
- *                      active
- */
-@ConfigData("quiescence")
-public record QuiescenceConfig(
-        @ConfigProperty(value = "enabled", defaultValue = "true")
-        boolean enabled,
-        @ConfigProperty(value = "tctDuration", defaultValue = "5s")
-        Duration tctDuration) {
-}
-
-```
-
 ## Metrics
+
+Metrics can produce misleading information due to the pause in event creation. Example: `secC2C` tracks the amount of
+time that passes from an event being created to it reaching consensus. Ordinarily, this is a few seconds. If this
+value spikes, it is usually an indicator of a performance issue in the network. If quiescence is not taken into
+account, this value will spike to the amount of time the network was quiesced, which would look like an issue, but is
+expected behavior.
 
 The following metrics should be added:
 
@@ -150,7 +158,7 @@ The following metrics should be removed since they would need to be modified, bu
 
 ### Unit Tests
 
-New unit tests for the event creator should be written for the following scenarios:
+New unit tests for the quiescence component should be written for the following scenarios:
 
 - If all the quiescence rules are met, it should stop creating events.
 - If the `wallClockTime` + `tctDuration` is less than the next TCT, it should create events regardless of any
