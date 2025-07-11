@@ -72,10 +72,12 @@ during the discussion.
 ### Requirements
 
 - When transactions stop being submitted to the network, the network should stop producing events in a timely manner.
-  This will happen after the submitted transactions reach consensus or become stale.
+  This will happen after the submitted transactions end up in a fully signed block or become stale.
 - The amount of time it takes the network to stop should be close to the C2RC time of the network.
-- When a transaction is submitted to a quiesced network, the network should start producing events and reach consensus
-  on this newly submitted transaction.
+- When a transaction is submitted to a quiesced network, the network should start producing events, and this newly 
+  submitted transaction should become part of a fully signed block.
+- The network should stop quiescing if consensus time needs to advance for any reason, such as scheduled transactions or
+  freeze.
 - No existing functionality should be affected.
 
 ### Quiescence mechanisms
@@ -146,15 +148,11 @@ Other conditions for breaking quiescence are that the wall-clock time is nearing
 event with a user transaction. If this occurs, while the network is quiescing, the network should resume creating events
 regularly. There is no need to create a QB in this case, since the whole network should be resuming event creation.
 
-#### Hiero details
-
-What was explained above is the high level overview. For Hiero implementation details, please refer to the following
-[quiescence details document](../assets/hip-xxxx-quiescence/quiescence-details.md).
-
 ### Impact on Mirror Node
 
 The only impact on Hiero Mirror node is that blocks will not flow constantly. If the network is quiesced, the mirror
-node will not receive blocks until the network breaks quiescence.
+node will not receive blocks until the network breaks quiescence. The mirror node will need to distinguish between
+a failure and a quiesced network, since they can appear similar.
 
 ### Impact on SDK
 
@@ -164,21 +162,18 @@ No impacts on Heiro SDKs are expected.
 
 There are no impacts to backwards compatibility.
 
-## Security Implications TODO
+## Security Implications
 
-If there are security concerns in relation to the HIP, those concerns should be
-explicitly addressed to make sure reviewers of the HIP are aware of them.
+There are no security implications of this HIP. The worst case scenario is that the network does not quiesce when it
+should, which leads to increased resource usage. This is not a security issue, but rather an efficiency issue.
 
-## How to Teach This TODO
+## How to Teach This
 
-For a HIP that adds new functionality or changes interface behaviors, it is
-helpful to include a section on how to teach users, new and experienced, how to
-apply the HIP to their work.
+There is nothing to teach.
 
-## Reference Implementation TODO
+## Reference Implementation
 
-The reference implementation must be complete before any HIP is given the status
-of “Final.” The final implementation must include test code and documentation.
+No reference implementation exists for this HIP at the moment.
 
 ## Rejected Ideas
 
@@ -200,15 +195,13 @@ We considered having the consensus module keep track of all three quiescence con
 they are already concerns of the execution module. Pushing these concerns into the consensus module would create several
 new touchpoints between the two modules, which would complicate the design and muddle responsibilities.
 
-## Open Issues TODO
+## Open Issues
 
-While a HIP is in draft, new ideas may arise that warrant further discussion.
-List them here so everyone knows they are under consideration but not yet
-resolved. This reduces duplication in future discussions.
+- How will mirror nodes detect quiescence?
 
-## References TODO
+## References 
 
-A collection of URLs used as references throughout the HIP.
+N/A
 
 ## Copyright/license
 
